@@ -3,6 +3,8 @@ package http
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -36,6 +38,31 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 
 func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]string{"error": message})
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) // 1 MiB
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		respondError(w, http.StatusBadRequest, "body must contain only one JSON value")
+		return errors.New("trailing data")
+	}
+	return nil
+}
+
+func SecureHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Subroute dispatchers

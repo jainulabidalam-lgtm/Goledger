@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -42,8 +41,7 @@ func (s *Server) HandleJournals(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createJournal(w http.ResponseWriter, r *http.Request) {
 	var req CreateJournalRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		return
 	}
 
@@ -117,14 +115,23 @@ func (s *Server) HandleGetJournal(w http.ResponseWriter, r *http.Request, idStr 
 	}
 
 	rows, err := s.DB.QueryContext(r.Context(), "SELECT id, account_id, debit_amount, credit_amount FROM journal_lines WHERE journal_entry_id = ?", j.ID)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var l JournalLineResponse
-			if err := rows.Scan(&l.ID, &l.AccountID, &l.DebitAmount, &l.CreditAmount); err == nil {
-				j.Lines = append(j.Lines, l)
-			}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l JournalLineResponse
+		if err := rows.Scan(&l.ID, &l.AccountID, &l.DebitAmount, &l.CreditAmount); err != nil {
+			respondError(w, http.StatusInternalServerError, "internal server error")
+			return
 		}
+		j.Lines = append(j.Lines, l)
+	}
+
+	if err := rows.Err(); err != nil {
+		respondError(w, http.StatusInternalServerError, "internal server error")
+		return
 	}
 
 	if j.Lines == nil {

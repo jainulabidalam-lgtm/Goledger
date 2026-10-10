@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 )
@@ -59,8 +58,7 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 	var req CreateAccountRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		return
 	}
 
@@ -77,6 +75,12 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 	validTypes := map[string]bool{"ASSET": true, "LIABILITY": true, "EQUITY": true, "INCOME": true, "EXPENSE": true}
 	if !validTypes[req.Type] {
 		respondError(w, http.StatusBadRequest, "invalid account type")
+		return
+	}
+
+	validCurrencies := map[string]bool{"INR": true, "USD": true, "EUR": true}
+	if !validCurrencies[req.Currency] {
+		respondError(w, http.StatusBadRequest, "invalid currency")
 		return
 	}
 

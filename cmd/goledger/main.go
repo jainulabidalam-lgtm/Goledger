@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"goledger/internal/database"
 	api "goledger/internal/http"
@@ -29,8 +30,16 @@ func main() {
 	mux.HandleFunc("/health", healthHandler)
 	srv.RegisterRoutes(mux)
 
-	log.Println("Starting GoLedger on :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	log.Println("Starting GoLedger on 127.0.0.1:8080")
+	server := &http.Server{
+		Addr:              "127.0.0.1:8080",
+		Handler:           api.SecureHeadersMiddleware(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
