@@ -1,74 +1,184 @@
 # GoLedger
 
-A production-minded, lightweight double-entry bookkeeping application built with Go and SQLite.
+**GoLedger** is a portfolio MVP for double-entry bookkeeping, built with Go, SQLite, and a browser-based interface embedded into the Go executable.
 
-## Stage 1
+- **Live demo:** https://goledger-1.onrender.com
+- **Source code:** https://github.com/jainulabidalam-lgtm/Goledger
+- **Status:** Deployed portfolio MVP — not intended for real financial records or production accounting.
 
-Currently implements a minimal HTTP server with a health check endpoint.
+## Features
 
-### Running the server
+- Chart of accounts with account codes, names, types, currencies, and status.
+- Double-entry journal entries with debit/credit validation and balanced-posting rules.
+- Account ledger with debit, credit, and running-balance information.
+- Dashboard summaries for accounts, journals, recent entries, and balances.
+- Reporting currency options for INR, USD, and EUR.
+- Currency converter using live exchange-rate data.
+- Login and session-based authentication.
+- Role-based access control for administrators, accountants, and viewers.
+- CSRF protection for state-changing requests.
+- Audit logging for supported accounting actions.
+- Journal reversal workflow that preserves the original entry and records a reversal.
+- Health endpoints and structured request logging.
+- Docker-based deployment support.
 
-```bash
-go build ./cmd/goledger
-./goledger
-```
+## Technology stack
 
-Check the liveness endpoint: `http://localhost:8080/health/live`
-Check the readiness endpoint: `http://localhost:8080/health/ready`
+| Area | Technology |
+|---|---|
+| Backend | Go |
+| Database | SQLite |
+| SQLite driver | `modernc.org/sqlite` (pure Go) |
+| Frontend | HTML, CSS, JavaScript |
+| Frontend assets | Embedded with Go's `embed` package |
+| Deployment | Docker, Render |
+| Exchange rates | ExchangeRate-API open endpoint |
 
-### Admin Provisioning
+## Try the live demo
 
-To create the initial administrative user, run the application with the following environment variables:
+Open [GoLedger](https://goledger-1.onrender.com).
 
-```bash
-$env:PROVISION_ADMIN_USER="admin"
-$env:PROVISION_ADMIN_PASS="your_secure_password"
-./goledger
-```
-The application will hash and store the credentials securely and then clear the variables from the active environment. Note: PowerShell keeps `$env` variables for the session duration unless cleared. Consider clearing them or using a wrapper script to avoid keeping passwords in session history.
+The hosted instance is intended for demonstration. Use fictional data only. The free Render service uses ephemeral storage and does not provide a persistent disk, so database changes may be lost when the service restarts, spins down, or is redeployed. Do not enter confidential information or rely on this instance as the only copy of any financial records.
 
-### Configuration
+The demo may spin down after inactivity and take a little time to respond on the next visit.
 
-The server can be configured using environment variables:
+## Run locally on Windows
 
-- `HOST`: Host to bind the server to (default: `127.0.0.1`).
-- `PORT`: Port to listen on (default: `8080`).
-- `DB_PATH`: Path to the SQLite database (default: `goledger.db`).
+### Requirements
 
-Example:
-```bash
-$env:HOST="0.0.0.0"
-$env:PORT="9090"
-$env:DB_PATH="custom.db"
-./goledger
-```
+- Go version compatible with the version specified in `go.mod`.
+- Git (if cloning the repository).
+- A modern browser.
+- Internet access for live exchange rates.
 
-## Backup and Recovery
-
-### Backing up the database
-
-To safely back up the SQLite database without stopping the server, run the provided PowerShell script:
-
-```powershell
-.\scripts\backup-goledger.ps1
-```
-
-You can optionally specify the SQLite executable path and retention count:
+### Get the source
 
 ```powershell
-.\scripts\backup-goledger.ps1 -SqlitePath "C:\path\to\sqlite3.exe" -RetentionCount 7
+git clone https://github.com/jainulabidalam-lgtm/Goledger.git
+cd Goledger
 ```
 
-### Testing a backup
-
-To verify a backup is valid, you can use the restore-test script. This restores the database to a separate test file and verifies integrity and table counts. It will never overwrite the active `goledger.db`.
+### Run tests
 
 ```powershell
-.\scripts\restore-test.ps1 -BackupFile ".\backups\goledger-20231010-100000.db"
+go test ./...
+go vet ./...
 ```
 
-If `-BackupFile` is not provided, it automatically selects the latest backup.
+### Build and run
 
-## Phase 5: Audit Trail and Accounting Integrity
+```powershell
+go build -o goledger.exe ./cmd/goledger
+.\goledger.exe
+```
 
-GoLedger now includes an immutable audit trail that tracks all account creations, journal entries, and reversals. This feature uses application-level immutability to prevent standard users from deleting or altering logs. Reversals are supported through the /api/journal-entries/{id}/reverse endpoint, which securely posts an offset entry to reverse previous balances without mutating historical records.
+Then open [http://127.0.0.1:8080](http://127.0.0.1:8080).
+
+By default, the app uses `goledger.db` relative to its working directory. Run the executable from the project root unless you intentionally configure another database path.
+
+## Configuration
+
+GoLedger reads its runtime configuration from environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `HOST` | Address to bind to. Use `127.0.0.1` for local-only access and `0.0.0.0` for a container platform such as Render. |
+| `PORT` | HTTP port. Render supplies this automatically; local runs default to `8080`. |
+| `DB_PATH` | SQLite database path. Defaults to `goledger.db` in the working directory. |
+| `PROVISION_ADMIN_USER` | Username used by the startup admin-provisioning mechanism. |
+| `PROVISION_ADMIN_PASS` | Password used by the startup admin-provisioning mechanism. |
+
+Set secrets through your deployment provider's secret/environment settings, not in source code. Confirm the application's provisioning behavior before assuming that changing provisioning variables changes an already-created account's password. Never commit database files, passwords, session tokens, or other secrets.
+
+## Docker
+
+The repository includes a `Dockerfile` for building a Linux Go binary and packaging the application into a small runtime image.
+
+Build the image from the repository root:
+
+```bash
+docker build -t goledger .
+```
+
+Run it locally:
+
+```bash
+docker run --rm -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 goledger
+```
+
+For any deployment that must preserve data, mount persistent storage and set `DB_PATH` to a file on that mounted volume. A container filesystem by itself is not durable storage.
+
+## API overview
+
+The application serves its embedded web interface from `/` and exposes API routes for health checks, authentication, accounts, journal entries, and account ledgers. The journal workflow also supports reversing eligible entries.
+
+Common routes include:
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/health/live` | Liveness check |
+| `GET` | `/health/ready` | Readiness check |
+| `POST` | `/api/auth/login` | Log in |
+| `POST` | `/api/auth/logout` | Log out |
+| `GET` | `/api/accounts` | List accounts |
+| `GET` | `/api/journal-entries` | List journal entries |
+| `GET` | `/api/journal-entries/{id}` | Retrieve a journal entry |
+| `POST` | `/api/journal-entries/{id}/reverse` | Reverse an eligible journal entry |
+| `GET` | `/api/accounts/{id}/ledger` | Retrieve an account ledger |
+
+Protected endpoints require authentication. State-changing requests are subject to the application's CSRF and role checks. Refer to the route handlers in `internal/http` for exact request bodies, response formats, and authorization requirements.
+
+## Accounting rules and data handling
+
+- Each journal line must contain a positive debit or a positive credit, not both.
+- Total debits must equal total credits before a journal entry can be posted.
+- Assets and expenses normally carry debit balances; liabilities, equity, and income normally carry credit balances.
+- Amounts are stored in minor currency units to avoid floating-point accounting arithmetic.
+- Reporting-currency conversion is for display; it should not rewrite the original transaction amounts.
+
+## Project structure
+
+```text
+.
+├── cmd/
+│   └── goledger/       # Application entry point
+├── internal/
+│   ├── audit/          # Audit logging
+│   ├── auth/           # Authentication/session logic
+│   ├── config/         # Runtime configuration
+│   ├── database/       # SQLite setup and migrations
+│   ├── http/           # HTTP server and API routes
+│   └── ledger/         # Accounting and journal rules
+├── scripts/            # Operational scripts
+├── web/
+│   ├── css/
+│   ├── js/
+│   ├── index.html
+│   └── web.go           # Embedded frontend assets
+├── Dockerfile
+├── go.mod
+└── go.sum
+```
+
+## Verification
+
+The Go test suite and `go vet` passed during development. Run them again against the exact revision you deploy:
+
+```powershell
+go test -count=1 ./...
+go vet ./...
+```
+
+Passing tests are useful evidence, but they do not replace a full security review, accounting review, or production-readiness assessment.
+
+## Known limitations
+
+- The hosted free-tier demo does not have durable SQLite storage.
+- Exchange-rate conversion depends on a third-party service and network availability; rates can change.
+- The project is a portfolio MVP, not certified accounting software.
+- Before production use, add durable database storage, verified automated backups and restore tests, monitoring, and a thorough security/accounting review.
+
+## License
+
+No license is specified here. Add a `LICENSE` file if you want to grant others explicit permission to use, modify, or redistribute the project.
