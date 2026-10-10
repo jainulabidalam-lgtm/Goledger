@@ -68,3 +68,7 @@ To verify a backup is valid, you can use the restore-test script. This restores 
 ```
 
 If `-BackupFile` is not provided, it automatically selects the latest backup.
+
+## Phase 5: Audit Trail and Accounting Integrity
+
+GoLedger now includes an immutable audit trail that tracks all account creations, journal entries, and reversals. This feature uses application-level immutability to prevent standard users from deleting or altering logs. Reversals are supported through the /api/journal-entries/{id}/reverse endpoint, which securely posts an offset entry to reverse previous balances without mutating historical records.

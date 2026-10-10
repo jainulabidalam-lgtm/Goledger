@@ -94,10 +94,21 @@ func (s *Server) HandleAccountSubroutes(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) HandleJournalSubroutes(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/journal-entries/")
-	if idStr != "" && !strings.Contains(idStr, "/") {
-		s.HandleGetJournal(w, r, idStr)
+	if idStr == "" {
+		respondError(w, http.StatusNotFound, "not found")
 		return
 	}
+
+	parts := strings.Split(idStr, "/")
+	if len(parts) == 1 {
+		s.HandleGetJournal(w, r, parts[0])
+		return
+	}
+	if len(parts) == 2 && parts[1] == "reverse" {
+		s.HandleReverseJournal(w, r, parts[0])
+		return
+	}
+
 	respondError(w, http.StatusNotFound, "not found")
 }
 

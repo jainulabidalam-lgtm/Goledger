@@ -1,9 +1,11 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
+	"goledger/internal/auth"
 	"goledger/internal/ledger"
 )
 
@@ -59,8 +61,15 @@ func (s *Server) createJournal(w http.ResponseWriter, r *http.Request) {
 		Lines:       req.Lines,
 	}
 
+	// Extract user from context
+	user, ok := r.Context().Value(userContextKey).(*auth.User)
+	if !ok || user == nil {
+		respondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	// The PostEntry function does all the heavy validation and transaction processing.
-	if err := ledger.PostEntry(r.Context(), s.DB, entry); err != nil {
+	if err := ledger.PostEntry(r.Context(), s.DB, entry, user.ID); err != nil {
 		// Map domain errors to HTTP statuses
 		switch err {
 		case ledger.ErrInvalidLinesCount, ledger.ErrUnbalancedEntry, ledger.ErrInvalidAmounts, ledger.ErrInvalidCurrency:
@@ -138,4 +147,37 @@ func (s *Server) HandleGetJournal(w http.ResponseWriter, r *http.Request, idStr 
 		j.Lines = []JournalLineResponse{}
 	}
 	respondJSON(w, http.StatusOK, j)
+}
+
+func (s *Server) HandleReverseJournal(w http.ResponseWriter, r *http.Request, idStr string) {
+	if r.Method != http.MethodPost {
+		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	user, ok := r.Context().Value(userContextKey).(*auth.User)
+	if !ok || user == nil {
+		respondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var originalEntryID int64
+	_, err := fmt.Sscanf(idStr, "%d", &originalEntryID)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid journal entry id")
+		return
+	}
+
+	if err := ledger.ReverseEntry(r.Context(), s.DB, originalEntryID, user.ID); err != nil {
+		if err.Error() == "original journal entry not found" {
+			respondError(w, http.StatusNotFound, err.Error())
+		} else if err.Error() == "cannot reverse an entry that is not POSTED" {
+			respondError(w, http.StatusBadRequest, err.Error())
+		} else {
+			respondError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "reversed"})
 }

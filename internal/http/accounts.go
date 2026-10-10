@@ -3,6 +3,9 @@ package http
 import (
 	"net/http"
 	"strings"
+
+	"goledger/internal/audit"
+	"goledger/internal/auth"
 )
 
 type Account struct {
@@ -108,5 +111,12 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 		Currency: req.Currency,
 		Status:   "ACTIVE",
 	}
+
+	// Audit Log
+	user, ok := r.Context().Value(userContextKey).(*auth.User)
+	if ok && user != nil {
+		_ = audit.Log(r.Context(), s.DB, user.ID, "CREATE", "ACCOUNT", id, acc)
+	}
+
 	respondJSON(w, http.StatusCreated, acc)
 }

@@ -86,6 +86,16 @@ func runMigrations(db *sql.DB) error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS audit_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			actor_id INTEGER,
+			action TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			entity_id INTEGER NOT NULL,
+			details TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(actor_id) REFERENCES users(id)
+		);`,
 	}
 
 	for i, migration := range migrations {

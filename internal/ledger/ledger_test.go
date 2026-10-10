@@ -19,10 +19,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 	// Create test accounts
 	_, err = db.Exec(`
-		INSERT INTO accounts (id, code, name, type, currency, status) VALUES 
+		INSERT INTO accounts (id, code, name, type, currency, status) VALUES
 		(1, '1000', 'Cash', 'ASSET', 'USD', 'ACTIVE'),
 		(2, '4000', 'Revenue', 'INCOME', 'USD', 'ACTIVE'),
 		(3, '5000', 'EUR Bank', 'ASSET', 'EUR', 'ACTIVE');
+		INSERT INTO users (id, username, password_hash, role) VALUES
+		(1, 'testuser', 'hash', 'admin');
 	`)
 	if err != nil {
 		t.Fatalf("failed to seed test db: %v", err)
@@ -44,7 +46,7 @@ func TestPostEntry_Valid(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -69,7 +71,7 @@ func TestPostEntry_InvalidLinesCount(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != ledger.ErrInvalidLinesCount {
 		t.Errorf("expected %v, got %v", ledger.ErrInvalidLinesCount, err)
 	}
@@ -88,7 +90,7 @@ func TestPostEntry_Unbalanced(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != ledger.ErrUnbalancedEntry {
 		t.Errorf("expected %v, got %v", ledger.ErrUnbalancedEntry, err)
 	}
@@ -107,7 +109,7 @@ func TestPostEntry_InvalidAmounts(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != ledger.ErrInvalidAmounts {
 		t.Errorf("expected %v, got %v", ledger.ErrInvalidAmounts, err)
 	}
@@ -126,7 +128,7 @@ func TestPostEntry_InconsistentCurrencies(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != ledger.ErrInvalidCurrency {
 		t.Errorf("expected %v, got %v", ledger.ErrInvalidCurrency, err)
 	}
@@ -145,7 +147,7 @@ func TestPostEntry_AccountNotFound(t *testing.T) {
 		},
 	}
 
-	err := ledger.PostEntry(context.Background(), db, entry)
+	err := ledger.PostEntry(context.Background(), db, entry, 1)
 	if err != ledger.ErrAccountNotFound {
 		t.Errorf("expected %v, got %v", ledger.ErrAccountNotFound, err)
 	}
