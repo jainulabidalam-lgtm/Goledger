@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	Host   string
-	Port   int
-	DBPath string
+	Host         string
+	Port         int
+	DBPath       string
+	TrustedProxy string
 }
 
 func Load() (*Config, error) {
@@ -40,6 +41,10 @@ func Load() (*Config, error) {
 			return nil, errors.New("invalid DB_PATH configuration")
 		}
 		cfg.DBPath = dbPath
+	}
+
+	if tp := os.Getenv("TRUSTED_PROXY"); tp != "" {
+		cfg.TrustedProxy = tp
 	}
 
 	return cfg, nil

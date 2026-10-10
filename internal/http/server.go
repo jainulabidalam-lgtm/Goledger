@@ -11,18 +11,29 @@ import (
 	"strings"
 	"time"
 
+	"goledger/internal/auth"
 	"goledger/web"
 )
 
 type Server struct {
-	DB *sql.DB
+	DB           *sql.DB
+	TrustedProxy string
 }
 
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/accounts", s.HandleAccounts)
-	mux.HandleFunc("/api/accounts/", s.HandleAccountSubroutes)
-	mux.HandleFunc("/api/journal-entries", s.HandleJournals)
-	mux.HandleFunc("/api/journal-entries/", s.HandleJournalSubroutes)
+	mux.HandleFunc("/api/auth/login", s.HandleLogin)
+	mux.HandleFunc("/api/auth/logout", s.HandleLogout)
+
+	// Protected API routes
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("/api/accounts", s.HandleAccounts)
+	apiMux.HandleFunc("/api/accounts/", s.HandleAccountSubroutes)
+	apiMux.HandleFunc("/api/journal-entries", s.HandleJournals)
+	apiMux.HandleFunc("/api/journal-entries/", s.HandleJournalSubroutes)
+
+	// Wrap apiMux with Auth and Role middlewares
+	protectedHandler := s.AuthMiddleware(RoleMiddleware(auth.RoleAdmin, auth.RoleAccountant, auth.RoleViewer)(ViewerMiddleware(apiMux)))
+	mux.Handle("/api/", protectedHandler)
 
 	mux.HandleFunc("/health/live", s.HandleLive)
 	mux.HandleFunc("/health/ready", s.HandleReady)

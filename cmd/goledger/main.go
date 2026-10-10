@@ -8,9 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"goledger/internal/auth"
 	"goledger/internal/config"
 	"goledger/internal/database"
 	api "goledger/internal/http"
@@ -33,7 +37,34 @@ func main() {
 	defer db.Close()
 	logger.Info("Database initialized successfully.")
 
-	srv := &api.Server{DB: db}
+	// Admin Provisioning
+	adminUser := os.Getenv("PROVISION_ADMIN_USER")
+	adminPass := os.Getenv("PROVISION_ADMIN_PASS")
+	if adminUser != "" && adminPass != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(adminPass), 14)
+		if err != nil {
+			logger.Error("Failed to hash admin password", "error", err)
+		} else {
+			_, err = db.Exec("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", adminUser, string(hash), auth.RoleAdmin)
+			if err != nil {
+				if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+					logger.Warn("Admin user already exists. Not overwriting credentials.", "username", adminUser)
+				} else {
+					logger.Error("Failed to provision admin", "error", err)
+				}
+			} else {
+				logger.Info("Admin provisioned successfully", "username", adminUser)
+			}
+		}
+		// Clear environment variables so they aren't exposed in subprocesses or memory dumps easily
+		os.Setenv("PROVISION_ADMIN_USER", "")
+		os.Setenv("PROVISION_ADMIN_PASS", "")
+	}
+
+	srv := &api.Server{
+		DB:           db,
+		TrustedProxy: cfg.TrustedProxy,
+	}
 	mux := http.NewServeMux()
 	srv.RegisterRoutes(mux)
 

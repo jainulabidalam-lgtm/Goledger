@@ -16,6 +16,17 @@ go build ./cmd/goledger
 Check the liveness endpoint: `http://localhost:8080/health/live`
 Check the readiness endpoint: `http://localhost:8080/health/ready`
 
+### Admin Provisioning
+
+To create the initial administrative user, run the application with the following environment variables:
+
+```bash
+$env:PROVISION_ADMIN_USER="admin"
+$env:PROVISION_ADMIN_PASS="your_secure_password"
+./goledger
+```
+The application will hash and store the credentials securely and then clear the variables from the active environment. Note: PowerShell keeps `$env` variables for the session duration unless cleared. Consider clearing them or using a wrapper script to avoid keeping passwords in session history.
+
 ### Configuration
 
 The server can be configured using environment variables:

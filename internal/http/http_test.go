@@ -9,12 +9,33 @@ import (
 	"strings"
 	"testing"
 
+	"goledger/internal/auth"
 	"goledger/internal/database"
 	api "goledger/internal/http"
 	"goledger/internal/ledger"
 )
 
-func setupTestServer(t *testing.T) (*api.Server, *http.ServeMux) {
+func setupTestServer(t *testing.T) (*api.Server, http.Handler) {
+	srv, mux := setupRawTestServer(t)
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, _, _ := auth.GenerateSessionToken()
+		hash := auth.HashSessionToken(token)
+		srv.DB.Exec("INSERT OR IGNORE INTO users (id, username, password_hash, role) VALUES (999, 'testadmin', 'hash', 'admin')")
+		srv.DB.Exec("INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (999, ?, datetime('now', '+1 hour'))", hash)
+
+		r.AddCookie(&http.Cookie{Name: "session_id", Value: token})
+		csrfToken, _ := auth.GenerateCSRFToken()
+		r.AddCookie(&http.Cookie{Name: "csrf_token", Value: csrfToken})
+		r.Header.Set("X-CSRF-Token", csrfToken)
+
+		mux.ServeHTTP(w, r)
+	})
+
+	return srv, testHandler
+}
+
+func setupRawTestServer(t *testing.T) (*api.Server, *http.ServeMux) {
 	db, err := database.InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("Failed to initialize test DB: %v", err)

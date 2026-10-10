@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"goledger/internal/database"
 	api "goledger/internal/http"
 )
 
@@ -32,15 +31,8 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 func TestStrictJSONDecoding(t *testing.T) {
-	db, err := database.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("Failed to initialize test DB: %v", err)
-	}
-	defer db.Close()
-
-	srv := &api.Server{DB: db}
-	mux := http.NewServeMux()
-	srv.RegisterRoutes(mux)
+	srv, mux := setupTestServer(t)
+	defer srv.DB.Close()
 
 	tests := []struct {
 		name       string
@@ -83,15 +75,8 @@ func TestStrictJSONDecoding(t *testing.T) {
 }
 
 func TestInvalidCurrency(t *testing.T) {
-	db, err := database.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("Failed to initialize test DB: %v", err)
-	}
-	defer db.Close()
-
-	srv := &api.Server{DB: db}
-	mux := http.NewServeMux()
-	srv.RegisterRoutes(mux)
+	srv, mux := setupTestServer(t)
+	defer srv.DB.Close()
 
 	payload := `{"code":"1000", "name":"Cash", "type":"ASSET", "currency":"GBP"}`
 	req, _ := http.NewRequest("POST", "/api/accounts", bytes.NewBufferString(payload))
@@ -104,15 +89,8 @@ func TestInvalidCurrency(t *testing.T) {
 }
 
 func TestJournalLineDBError(t *testing.T) {
-	db, err := database.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("Failed to initialize test DB: %v", err)
-	}
-	defer db.Close()
-
-	srv := &api.Server{DB: db}
-	mux := http.NewServeMux()
-	srv.RegisterRoutes(mux)
+	srv, mux := setupTestServer(t)
+	defer srv.DB.Close()
 
 	// Insert a valid journal
 	srv.DB.Exec("INSERT INTO journal_entries (id, date, description, status) VALUES (1, '2023-10-01', 'Test', 'POSTED')")
