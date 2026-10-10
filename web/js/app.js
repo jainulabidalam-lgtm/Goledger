@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showLoading = () => loadingIndicator.classList.remove('hidden');
     const hideLoading = () => loadingIndicator.classList.add('hidden');
-    
+
     const showError = (msg) => {
         console.error("Dashboard Error:", msg);
         errorContainer.textContent = msg;
@@ -139,13 +139,81 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => errorContainer.classList.add('hidden'), 8000);
     };
 
+    const getCsrfToken = () => {
+        const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+        return match ? match[1] : null;
+    };
+
+    const showLogin = () => {
+        document.getElementById('app-container').classList.add('hidden');
+        document.getElementById('login-container').classList.remove('hidden');
+        document.getElementById('login-error').classList.add('hidden');
+    };
+
+    const hideLogin = () => {
+        document.getElementById('login-container').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
+    };
+
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById('login-username');
+            const passwordInput = document.getElementById('login-password');
+            const errorEl = document.getElementById('login-error');
+
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: usernameInput.value,
+                        password: passwordInput.value
+                    }),
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || "Login failed");
+                }
+
+                // Clear password immediately
+                passwordInput.value = '';
+                hideLogin();
+
+                await navigate('dashboard');
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+    }
+
     const apiCall = async (url, options = {}) => {
         showLoading();
         try {
             // Ensure no-cache so we always fetch latest data from the DB
-            const fetchOptions = { ...options, cache: 'no-store' };
+            const fetchOptions = { ...options, cache: 'no-store', credentials: 'same-origin' };
+
+            const method = (fetchOptions.method || 'GET').toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+                const csrf = getCsrfToken();
+                if (csrf) {
+                    fetchOptions.headers = { ...fetchOptions.headers, 'X-CSRF-Token': csrf };
+                }
+            }
+
             const response = await fetch(url, fetchOptions);
-            
+
+            if (response.status === 401) {
+                showLogin();
+                throw new Error("Authentication required");
+            }
+
             // Check if response has content
             const text = await response.text();
             let data = null;
@@ -174,10 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const navigate = async (route) => {
         views.forEach(v => v.classList.remove('active'));
         navItems.forEach(n => n.classList.remove('active'));
-        
+
         const viewEl = document.getElementById(`view-${route}`);
         const navEl = document.querySelector(`[data-route="${route}"]`);
-        
+
         if (viewEl) viewEl.classList.add('active');
         if (navEl) navEl.classList.add('active');
 
@@ -215,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadDashboard = async () => {
         const accs = await apiCall('/api/accounts');
         const jnls = await apiCall('/api/journal-entries');
-        
+
         state.accounts = accs || [];
         state.journals = jnls || [];
 
@@ -237,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const balancesBody = document.querySelector('#dash-balances-table tbody');
         balancesBody.innerHTML = '<tr><td colspan="3">Loading balances...</td></tr>';
-        
+
         const accountsToLoad = state.accounts.slice(0, 10);
         if (accountsToLoad.length > 0) {
             try {
@@ -307,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const accs = await apiCall('/api/accounts');
         state.journals = jnls || [];
         state.accounts = accs || [];
-        
+
         const body = document.querySelector('#journals-table tbody');
         if (state.journals.length > 0) {
             body.innerHTML = state.journals.map(j => `
@@ -332,12 +400,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const addJournalLine = () => {
         const container = document.getElementById('journal-lines');
         if (!container) return;
-        
+
         const line = document.createElement('div');
         line.className = 'journal-line';
-        
+
         const options = state.accounts.map(a => `<option value="${a.id}">${a.code} - ${a.name}</option>`).join('');
-        
+
         line.innerHTML = `
             <div>
                 <label>Account</label>
@@ -386,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             totalDebit += debit;
             totalCredit += credit;
         });
-        
+
         const debitEl = document.getElementById('total-debit');
         const creditEl = document.getElementById('total-credit');
         if (debitEl) debitEl.textContent = totalDebit.toFixed(2);
@@ -397,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (createJournalForm) {
         createJournalForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const lines = Array.from(document.querySelectorAll('.journal-line')).map(line => {
                 return {
                     account_id: parseInt(line.querySelector('.j-line-account').value),
@@ -433,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.accounts = accs || [];
         const select = document.getElementById('ledger-account-select');
         if (select) {
-            select.innerHTML = '<option value="">-- Select an Account --</option>' + 
+            select.innerHTML = '<option value="">-- Select an Account --</option>' +
                 state.accounts.map(a => `<option value="${a.id}">${a.code} - ${a.name}</option>`).join('');
         }
     };
@@ -451,11 +519,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = await apiCall(`/api/accounts/${id}/ledger`);
                 if (!data || !data.account) throw new Error("Invalid ledger data");
-                
+
                 document.getElementById('ledger-title').textContent = `${data.account.code} - ${data.account.name}`;
                 document.getElementById('ledger-subtitle').textContent = `Type: ${data.account.type} | Currency: ${data.account.currency}`;
                 document.getElementById('ledger-balance-amount').textContent = formatCurrency(data.balance || 0);
-                
+
                 const body = document.querySelector('#ledger-table tbody');
                 if (data.entries && data.entries.length > 0) {
                     body.innerHTML = data.entries.map(e => `
@@ -470,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     body.innerHTML = '<tr><td colspan="5">No transactions found.</td></tr>';
                 }
-                
+
                 resultsEl.classList.remove('hidden');
             } catch (err) {
                 resultsEl.classList.add('hidden');

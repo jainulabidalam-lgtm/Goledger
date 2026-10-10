@@ -8,7 +8,28 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
+    <div id="login-container" class="hidden" style="display: flex; min-height: 100vh; align-items: center; justify-content: center; background-color: var(--bg-light);">
+        <div class="card" style="width: 100%; max-width: 400px;">
+            <div class="card-header" style="text-align: center;">
+                <h2>GoLedger Login</h2>
+            </div>
+            <form id="login-form" class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <div class="form-actions" style="margin-top: 16px; justify-content: center;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                </div>
+                <div id="login-error" class="text-danger mt-4 hidden" style="text-align: center;"></div>
+            </form>
+        </div>
+    </div>
+    <div class="app-container" id="app-container">
         <aside class="sidebar">
             <div class="logo">
                 <div class="logo-icon"></div>
@@ -36,7 +57,7 @@
                     <div class="spinner"></div> Loading...
                 </div>
             </header>
-            
+
             <div id="error-container" class="error-container hidden"></div>
 
             <div id="view-dashboard" class="view active">
@@ -50,7 +71,7 @@
                         <div class="stat-value" id="dash-total-journals">0</div>
                     </div>
                 </div>
-                
+
                 <div class="card currency-converter mt-4" id="currency-converter">
                     <div class="card-header">
                         <h2>Currency Converter</h2>
