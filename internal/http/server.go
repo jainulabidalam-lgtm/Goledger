@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"goledger/web"
 )
@@ -21,6 +23,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/accounts/", s.HandleAccountSubroutes)
 	mux.HandleFunc("/api/journal-entries", s.HandleJournals)
 	mux.HandleFunc("/api/journal-entries/", s.HandleJournalSubroutes)
+
+	mux.HandleFunc("/health/live", s.HandleLive)
+	mux.HandleFunc("/health/ready", s.HandleReady)
 
 	fs := http.FileServer(http.FS(web.FS))
 	mux.Handle("/", fs)
@@ -83,4 +88,61 @@ func (s *Server) HandleJournalSubroutes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respondError(w, http.StatusNotFound, "not found")
+}
+
+func (s *Server) HandleLive(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) HandleReady(w http.ResponseWriter, r *http.Request) {
+	if err := s.DB.PingContext(r.Context()); err != nil {
+		respondError(w, http.StatusServiceUnavailable, "database not ready")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok", "database": "ready"})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	if !rw.wroteHeader {
+		rw.status = code
+		rw.wroteHeader = true
+		rw.ResponseWriter.WriteHeader(code)
+	}
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if !rw.wroteHeader {
+		rw.status = http.StatusOK
+		rw.wroteHeader = true
+	}
+	return rw.ResponseWriter.Write(b)
+}
+
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
+
+func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rw := &responseWriter{
+				ResponseWriter: w,
+				status:         http.StatusOK, // Default status if nothing is written
+			}
+			next.ServeHTTP(rw, r)
+			logger.Info("request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Int("status", rw.status),
+				slog.Duration("duration", time.Since(start)),
+			)
+		})
+	}
 }

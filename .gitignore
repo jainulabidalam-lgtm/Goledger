@@ -20,3 +20,6 @@
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Backup directory
+backups/

@@ -3,8 +3,10 @@ package http_test
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"goledger/internal/database"
@@ -191,5 +193,56 @@ func TestStaticFilesAndAPI(t *testing.T) {
 				t.Errorf("expected %d for %s, got %d", tc.expectedCode, tc.path, rr.Code)
 			}
 		})
+	}
+}
+
+func TestHealthEndpoints(t *testing.T) {
+	srv, mux := setupTestServer(t)
+	defer srv.DB.Close()
+
+	// Test Liveness
+	req, _ := http.NewRequest("GET", "/health/live", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /health/live, got %v", rr.Code)
+	}
+
+	// Test Readiness (DB is up)
+	req, _ = http.NewRequest("GET", "/health/ready", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /health/ready, got %v", rr.Code)
+	}
+
+	// Test Readiness (DB is down)
+	srv.DB.Close()
+	req, _ = http.NewRequest("GET", "/health/ready", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 Service Unavailable for /health/ready, got %v", rr.Code)
+	}
+}
+
+func TestLoggingMiddleware(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
+
+	handler := api.LoggingMiddleware(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello"))
+	}))
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK, got %v", rr.Code)
+	}
+
+	if !strings.Contains(buf.String(), `"status":200`) {
+		t.Errorf("expected status 200 in log, got %s", buf.String())
 	}
 }
