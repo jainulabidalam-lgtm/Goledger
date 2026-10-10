@@ -1,0 +1,22 @@
+# Binaries
+/goledger
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Development files
+.env
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

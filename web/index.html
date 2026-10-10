@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoLedger Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                GoLedger
+            </div>
+            <nav class="nav-menu">
+                <a href="#" data-route="dashboard" class="nav-item active">Dashboard</a>
+                <a href="#" data-route="accounts" class="nav-item">Chart of Accounts</a>
+                <a href="#" data-route="journals" class="nav-item">Journal Entries</a>
+                <a href="#" data-route="ledger" class="nav-item">Account Ledger</a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <header class="topbar">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="currency-toolbar">
+                    <label for="reporting-currency">Report in</label>
+                    <select id="reporting-currency" aria-label="Dashboard reporting currency">
+                        <option value="INR">INR (Rupee)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (Euro)</option>
+                    </select>
+                </div>
+                <div id="loading-indicator" class="hidden">
+                    <div class="spinner"></div> Loading...
+                </div>
+            </header>
+            
+            <div id="error-container" class="error-container hidden"></div>
+
+            <div id="view-dashboard" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Accounts</h3>
+                        <div class="stat-value" id="dash-total-accounts">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Journals</h3>
+                        <div class="stat-value" id="dash-total-journals">0</div>
+                    </div>
+                </div>
+                
+                <div class="card currency-converter mt-4" id="currency-converter">
+                    <div class="card-header">
+                        <h2>Currency Converter</h2>
+                        <span id="fx-rate-status" class="text-sm">Loading exchange rates...</span>
+                    </div>
+                    <div class="converter-body">
+                        <div class="form-group">
+                            <label for="fx-amount">Amount</label>
+                            <input id="fx-amount" type="number" min="0" step="any" value="1000" inputmode="decimal">
+                        </div>
+                        <div class="form-group">
+                            <label for="fx-from">From</label>
+                            <select id="fx-from">
+                                <option value="INR">INR - Indian Rupee</option>
+                                <option value="USD">USD - US Dollar</option>
+                                <option value="EUR">EUR - Euro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="fx-to">To</label>
+                            <select id="fx-to">
+                                <option value="INR">INR - Indian Rupee</option>
+                                <option value="USD" selected>USD - US Dollar</option>
+                                <option value="EUR">EUR - Euro</option>
+                            </select>
+                        </div>
+                        <div class="converter-result">
+                            <span class="text-sm">Converted amount</span>
+                            <strong id="fx-result">--</strong>
+                        </div>
+                    </div>
+                    <div class="converter-footer">
+                        <span id="fx-rate-detail" class="text-sm">Rates supplied by a free exchange-rate service.</span>
+                        <button type="button" class="btn btn-secondary" id="fx-refresh">Refresh rates</button>
+                    </div>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Recent Journal Entries</h2>
+                        </div>
+                        <div class="table-container">
+                            <table id="dash-journals-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Description</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Account Balances</h2>
+                        </div>
+                        <div class="table-container">
+                            <table id="dash-balances-table">
+                                <thead>
+                                    <tr>
+                                        <th>Account</th>
+                                        <th>Type</th>
+                                        <th>Balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-accounts" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Create Account</h2>
+                    </div>
+                    <form id="create-account-form" class="form-grid">
+                        <div class="form-group">
+                            <label>Code</label>
+                            <input type="text" id="acc-code" required placeholder="e.g. 1000">
+                        </div>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="acc-name" required placeholder="e.g. Cash">
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="acc-type" required>
+                                <option value="ASSET">Asset</option>
+                                <option value="LIABILITY">Liability</option>
+                                <option value="EQUITY">Equity</option>
+                                <option value="INCOME">Income</option>
+                                <option value="EXPENSE">Expense</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <select id="acc-currency" required>
+                                <option value="INR" selected>INR - Indian Rupee</option>
+                                <option value="USD">USD - US Dollar</option>
+                                <option value="EUR">EUR - Euro</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Account</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h2>Chart of Accounts</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="accounts-table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Currency</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-journals" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Create Journal Entry</h2>
+                    </div>
+                    <form id="create-journal-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Date</label>
+                                <input type="date" id="j-date" required>
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label>Description</label>
+                                <input type="text" id="j-desc" required>
+                            </div>
+                        </div>
+
+                        <div class="lines-container">
+                            <h3>Entry Lines</h3>
+                            <div id="journal-lines">
+                                <!-- Lines added here dynamically -->
+                            </div>
+                            <div class="line-actions">
+                                <button type="button" id="btn-add-line" class="btn btn-secondary">+ Add Line</button>
+                                <div class="totals">
+                                    <span>Total Debit: <strong id="total-debit">0.00</strong></span>
+                                    <span>Total Credit: <strong id="total-credit">0.00</strong></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Post Journal</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h2>Journal History</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="journals-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-ledger" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Select Account</h2>
+                    </div>
+                    <div class="form-group">
+                        <select id="ledger-account-select">
+                            <option value="">-- Select an Account --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card mt-4 hidden" id="ledger-results">
+                    <div class="card-header ledger-header">
+                        <div>
+                            <h2 id="ledger-title">Account Ledger</h2>
+                            <p id="ledger-subtitle" class="text-sm"></p>
+                        </div>
+                        <div class="ledger-balance">
+                            <span>Current Balance:</span>
+                            <h2 id="ledger-balance-amount">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="ledger-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                    <th>Running Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    <script src="/js/app.js" defer></script>
+</body>
+</html>
+
+
+
